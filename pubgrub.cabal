@@ -24,8 +24,19 @@ library
   hs-source-dirs: src
   exposed-modules:
       PubGrub
+      PubGrub.DependencyProvider
+      PubGrub.Error
+      PubGrub.Logger
+      PubGrub.Term
+      PubGrub.VersionRange
+      -- Internal
+      PubGrub.Internal.PackageResolutionStats
   build-depends:
       base < 5
+    , containers
+    , hashable
+    , text
+    , unordered-containers
   default-language: GHC2021
   ghc-options: -Wall -Wcompat
 
