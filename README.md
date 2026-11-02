@@ -8,3 +8,7 @@ PubGrub is a high performance version resolution algorithm with good error messa
 References:
 * https://nex3.medium.com/pubgrub-2fb6470504f
 * https://deepwiki.com/pubgrub-rs/pubgrub/3.2-the-pubgrub-algorithm
+
+## Acknowledgements
+
+Huge thanks to [pubgrub-rs](https://github.com/pubgrub-rs/pubgrub), which I used as a reference implementation.
