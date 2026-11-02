@@ -26,13 +26,21 @@ library
       PubGrub
       PubGrub.DependencyProvider
       PubGrub.Error
+      PubGrub.Logger
       PubGrub.VersionSet
       -- Internal
+      PubGrub.Internal.Arena.HashArena
+      PubGrub.Internal.Arena.IdMap
+      PubGrub.Internal.Arena.SeqArena
+      PubGrub.Internal.Incompatibility
       PubGrub.Internal.PackageResolutionStats
+      PubGrub.Internal.PartialSolution
   build-depends:
       base < 5
     , containers
+    , hashable
     , text
+    , unordered-containers
   default-language: GHC2021
   ghc-options: -Wall -Wcompat
 

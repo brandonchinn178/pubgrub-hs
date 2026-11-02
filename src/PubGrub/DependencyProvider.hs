@@ -25,6 +25,7 @@ import Data.Ord (Down (..))
 import Data.Text (Text)
 import Data.Void (Void)
 import PubGrub.Internal.PackageResolutionStats (PackageResolutionStats, conflictCount)
+import PubGrub.Logger (Logger (..))
 import PubGrub.VersionSet (IsVersionSet (..), Version)
 import PubGrub.VersionSet qualified as VersionSet
 
@@ -39,6 +40,7 @@ data DependencyProvider package versionSet incompat err m
   , chooseVersion :: package -> versionSet -> m (Either err (Maybe (Version versionSet)))
   , getDependencies :: package -> Version versionSet -> m (Either err (Dependencies package versionSet incompat))
   , shouldCancel :: m (Either err ())
+  , logger :: Logger m
   }
 
 data Dependencies package versionSet incompat
@@ -71,3 +73,5 @@ mkOfflineDependencyProvider deps = DependencyProvider{..}
   unavailable = Unavailable "its dependencies could not be determined"
 
   shouldCancel = pure (Right ())
+
+  logger = Logger (\_ _ -> pure ())
