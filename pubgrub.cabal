@@ -1,0 +1,45 @@
+cabal-version: 3.0
+
+name: pubgrub
+version: 0.0.1
+synopsis: Haskell implementation of the PubGrub algorithm
+description: Haskell implementation of the PubGrub algorithm.
+homepage: https://github.com/brandonchinn178/pubgrub#readme
+bug-reports: https://github.com/brandonchinn178/pubgrub/issues
+author: Brandon Chinn <brandonchinn178@gmail.com>
+maintainer: Brandon Chinn <brandonchinn178@gmail.com>
+license: BSD-3-Clause
+license-file: LICENSE.md
+category: Algorithms
+build-type: Simple
+extra-source-files:
+  README.md
+  CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/brandonchinn178/pubgrub
+
+library
+  hs-source-dirs: src
+  exposed-modules:
+      PubGrub
+  build-depends:
+      base < 5
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat
+
+test-suite pubgrub-tests
+  type: exitcode-stdio-1.0
+  ghc-options: -F -pgmF=skeletest-preprocessor
+  build-tool-depends: skeletest:skeletest-preprocessor
+  hs-source-dirs: test
+  main-is: Main.hs
+  other-modules:
+      PubGrubSpec
+  build-depends:
+      base
+    , pubgrub
+    , skeletest >= 0.4
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat

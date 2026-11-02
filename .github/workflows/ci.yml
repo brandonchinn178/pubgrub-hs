@@ -1,0 +1,107 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash -eu -o pipefail {0}
+
+jobs:
+  build_and_test:
+    strategy:
+      matrix:
+        ghc_version:
+          - '9.8'
+          - '9.10'
+          - '9.12'
+          - '9.14'
+        include:
+          - ghc_version: '9.8.1'
+            oldest: true
+
+    name: build_and_test (${{ matrix.ghc_version }})
+    runs-on: ubuntu-latest
+
+    steps:
+      -
+        uses: actions/checkout@v7
+      -
+        id: setup
+        name: Set up GHC ${{ matrix.ghc_version }}
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc_version }}
+      -
+        name: Configure the build
+        run:
+          cabal configure
+            --enable-test
+            --test-show-details=streaming
+      -
+        if: ${{ matrix.oldest }}
+        name: Use oldest dependencies
+        run: cabal configure --enable-append --prefer-oldest
+      -
+        name: Get build plan
+        run: cabal build --dry-run
+      -
+        name: Get current month to clear cache
+        run: echo "CURR_MONTH=$(date +%B)" | tee -a "$GITHUB_ENV"
+      -
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-${{ hashFiles('**/plan.json') }}
+          restore-keys: |
+               ${{ runner.os }}-cabal-cache-${{ env.CURR_MONTH }}-${{ matrix.ghc_version }}-
+      -
+        name: Build
+        run: cabal build
+      -
+        name: Test
+        run: cabal exec cabal test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v7
+      -
+        name: Install hooky
+        run: |
+          curl -fsSL \
+            https://github.com/brandonchinn178/hooky/releases/download/v1.0.2/hooky-1.0.2-linux-x86_64 \
+            -o /usr/local/bin/hooky
+          chmod +x /usr/local/bin/hooky
+      -
+        name: Install dotslash
+        run: >
+          curl -fsSL https://github.com/facebook/dotslash/releases/latest/download/dotslash-ubuntu-22.04.$(uname -m).tar.gz
+          | tar xzf - -C /usr/local/bin/
+      -
+        name: Run hooky
+        run: hooky run --all --format=verbose
+        env:
+          SKIP: no_commit_to_branch
+
+  build_sdist:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v7
+      -
+        id: setup
+        name: Set up GHC
+        uses: haskell-actions/setup@v2
+      -
+        name: Create sdist bundle
+        run: cabal sdist --output-directory=.
+      -
+        uses: actions/upload-artifact@v7
+        with:
+          name: pubgrub-sdist
+          path: pubgrub-*.tar.gz

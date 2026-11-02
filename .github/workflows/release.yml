@@ -1,0 +1,81 @@
+name: Release
+on: workflow_dispatch
+
+defaults:
+  run:
+    shell: bash -eu -o pipefail {0}
+
+jobs:
+  cabal_file:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v7
+      -
+        uses: haskell-actions/parse-cabal-file@v1
+        id: cabal_file
+        with:
+          cabal_file: pubgrub.cabal
+    outputs:
+      version: ${{ steps.cabal_file.outputs.version }}
+
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  check_changelog:
+    needs:
+      - cabal_file
+    runs-on: ubuntu-latest
+    env:
+      version: ${{ needs.cabal_file.outputs.version }}
+    steps:
+      -
+        uses: actions/checkout@v7
+      -
+        name: Validate CHANGELOG
+        run:
+          scripts/release_notes.py validate-changelog
+            --release-version "${version}"
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - cabal_file
+      - ci
+      - check_changelog
+
+    env:
+      version: ${{ needs.cabal_file.outputs.version }}
+
+    steps:
+      -
+        uses: actions/checkout@v7
+      -
+        uses: actions/download-artifact@v7
+        with:
+          name: pubgrub-sdist
+          path: ./.release/sdist/
+      -
+        id: hackage_token_secret
+        name: Load Hackage token secret name
+        run: |
+          USERNAME="$(echo "${GITHUB_ACTOR}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+          echo "name=HACKAGE_TOKEN_${USERNAME}" >> "${GITHUB_OUTPUT}"
+      -
+        name: Generate release notes
+        run:
+          scripts/release_notes.py generate
+            --release-version "${version}"
+            | tee .release/release-notes.md
+      -
+        uses: haskell-actions/hackage-publish@v1
+        with:
+          hackageToken: ${{ secrets[steps.hackage_token_secret.outputs.name] }}
+          packagesPath: ./.release/sdist/
+      -
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ env.version }}
+          body_path: .release/release-notes.md
+          draft: true
+          target_commitish: ${{ github.sha }}
