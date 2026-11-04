@@ -5,10 +5,10 @@
 {-# LANGUAGE NoFieldSelectors #-}
 
 module PubGrub.DependencyProvider (
-  DependencyProvider (..),
+  IsDependencyProvider (..),
   Version,
-  IsVersionRange (..),
-  Dependencies (..),
+  Dependencies,
+  Dependencies' (..),
 
   -- * Constraint helpers
   IsPackage,
@@ -21,7 +21,8 @@ module PubGrub.DependencyProvider (
   conflictCount,
 
   -- * Built-in dependency provider implementations
-  DependencyProviderImpl (..),
+  DependencyProvider (..),
+  toImpl,
   OfflineDependencyProvider (..),
 ) where
 
@@ -35,9 +36,10 @@ import Data.Maybe (fromMaybe)
 import Data.Ord (Down (..))
 import Data.Text (Text)
 import Data.Void (Void)
+import Data.Word (Word32)
 import PubGrub.Internal.PackageResolutionStats (PackageResolutionStats, conflictCount)
 import PubGrub.Logger (Logger (..))
-import PubGrub.VersionRange (IsVersionRange (..), VersionType)
+import PubGrub.VersionRange (IsVersionRange)
 import PubGrub.VersionRange qualified as VersionRange
 
 -- | The interface for package resolution.
@@ -52,7 +54,7 @@ class
   , Monad (ResolveMonad provider)
   , IsPriority (Priority provider)
   ) =>
-  DependencyProvider provider
+  IsDependencyProvider provider
   where
   type Package provider
   type VersionRange provider
@@ -78,12 +80,7 @@ class
     provider ->
     Package provider ->
     Version provider ->
-    ResolveMonad
-      provider
-      ( Either
-          (ResolutionError provider)
-          (Dependencies (Package provider) (VersionRange provider) (UnavailableError provider))
-      )
+    ResolveMonad provider (Either (ResolutionError provider) (Dependencies provider))
 
   shouldCancel :: provider -> ResolveMonad provider (Either (ResolutionError provider) ())
   shouldCancel _ = pure (Right ())
@@ -112,38 +109,60 @@ type IsPriority priority =
   , Eq priority
   )
 
-type Version provider = VersionType (VersionRange provider)
+type Version provider = VersionRange.Version (VersionRange provider)
 
-data Dependencies package range unavailErr
+type Dependencies provider =
+  Dependencies'
+    (Package provider)
+    (VersionRange provider)
+    (UnavailableError provider)
+
+data Dependencies' package range unavailErr
   = Available [(package, range)]
   | Unavailable unavailErr
   deriving (Show, Eq)
 
 -- | A record-of-functions for specifying a DependencyProvider instance in-line.
-data DependencyProviderImpl package range unavailErr err m priority = DependencyProviderImpl
-  { prioritize :: package -> range -> PackageResolutionStats -> m priority
-  , chooseVersion :: package -> range -> m (Either err (Maybe (VersionType range)))
-  , getDependencies :: package -> VersionType range -> m (Either err (Dependencies package range unavailErr))
-  , shouldCancel :: m (Either err ())
-  , logger :: Logger m
+data DependencyProvider provider = DependencyProvider
+  { prioritize ::
+      Package provider ->
+      VersionRange provider ->
+      PackageResolutionStats ->
+      ResolveMonad provider (Priority provider)
+  , chooseVersion ::
+      Package provider ->
+      VersionRange provider ->
+      ResolveMonad provider (Either (ResolutionError provider) (Maybe (Version provider)))
+  , getDependencies ::
+      Package provider ->
+      Version provider ->
+      ResolveMonad provider (Either (ResolutionError provider) (Dependencies provider))
+  , shouldCancel ::
+      ResolveMonad provider (Either (ResolutionError provider) ())
+  , logger ::
+      Logger (ResolveMonad provider)
   }
 
+toImpl :: (IsDependencyProvider provider) => provider -> DependencyProvider provider
+toImpl provider =
+  DependencyProvider
+    { prioritize = prioritize provider
+    , chooseVersion = chooseVersion provider
+    , getDependencies = getDependencies provider
+    , shouldCancel = shouldCancel provider
+    , logger = logger provider
+    }
+
 instance
-  ( IsPackage package
-  , IsVersionRange range
-  , IsUnavailableError unavailErr
-  , IsResolutionError err
-  , Monad m
-  , IsPriority priority
-  ) =>
-  DependencyProvider (DependencyProviderImpl package range unavailErr err m priority)
+  (IsDependencyProvider provider) =>
+  IsDependencyProvider (DependencyProvider provider)
   where
-  type Package (DependencyProviderImpl package range unavailErr err m priority) = package
-  type VersionRange (DependencyProviderImpl package range unavailErr err m priority) = range
-  type UnavailableError (DependencyProviderImpl package range unavailErr err m priority) = unavailErr
-  type ResolutionError (DependencyProviderImpl package range unavailErr err m priority) = err
-  type ResolveMonad (DependencyProviderImpl package range unavailErr err m priority) = m
-  type Priority (DependencyProviderImpl package range unavailErr err m priority) = priority
+  type Package (DependencyProvider provider) = Package provider
+  type VersionRange (DependencyProvider provider) = VersionRange provider
+  type UnavailableError (DependencyProvider provider) = UnavailableError provider
+  type ResolutionError (DependencyProvider provider) = ResolutionError provider
+  type ResolveMonad (DependencyProvider provider) = ResolveMonad provider
+  type Priority (DependencyProvider provider) = Priority provider
 
   prioritize = (.prioritize)
   chooseVersion = (.chooseVersion)
@@ -153,26 +172,26 @@ instance
 
 newtype OfflineDependencyProvider package range
   = OfflineDependencyProvider
-      (Map package (Map (VersionType range) [(package, range)]))
+      (Map package (Map (VersionRange.Version range) [(package, range)]))
 
 instance
   ( IsPackage package
   , IsVersionRange range
   ) =>
-  DependencyProvider (OfflineDependencyProvider package range)
+  IsDependencyProvider (OfflineDependencyProvider package range)
   where
   type Package (OfflineDependencyProvider package range) = package
   type VersionRange (OfflineDependencyProvider package range) = range
   type UnavailableError (OfflineDependencyProvider package range) = Text
   type ResolutionError (OfflineDependencyProvider package range) = Void
   type ResolveMonad (OfflineDependencyProvider package range) = Identity
-  type Priority (OfflineDependencyProvider package range) = (Int, Down Int)
+  type Priority (OfflineDependencyProvider package range) = (Word32, Down Int)
 
   prioritize (OfflineDependencyProvider deps) package range stats = do
     let versionCount =
           case Map.lookup package deps of
             Nothing -> 0
-            Just versions -> length . filter id . (`VersionRange.elemMany` range) $ Map.keys versions
+            Just versions -> length . filter (`VersionRange.elem` range) $ Map.keys versions
     pure (stats.conflictCount, Down versionCount)
 
   chooseVersion (OfflineDependencyProvider deps) package range = do

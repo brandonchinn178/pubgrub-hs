@@ -29,12 +29,21 @@ library
       PubGrub.Logger
       PubGrub.Term
       PubGrub.VersionRange
+      -- Solver implementation
+      PubGrub.Solver.Incompatibilities
+      PubGrub.Solver.Incompatibility
+      PubGrub.Solver.Monad
+      PubGrub.Solver.PartialSolution
       -- Internal
       PubGrub.Internal.PackageResolutionStats
+      -- Utils
+      PubGrub.Utils.Text
   build-depends:
       base < 5
     , containers
+    , data-interval
     , hashable
+    , insert-ordered-containers
     , text
     , unordered-containers
   default-language: GHC2021
@@ -48,8 +57,13 @@ test-suite pubgrub-tests
   main-is: Main.hs
   other-modules:
       PubGrubSpec
+      PubGrub.TermSpec
+      PubGrub.VersionRangeSpec
+      -- Test utilities
+      PubGrub.TestUtils.VersionRange
   build-depends:
       base
+    , data-interval
     , pubgrub
     , skeletest >= 0.4
   default-language: GHC2021

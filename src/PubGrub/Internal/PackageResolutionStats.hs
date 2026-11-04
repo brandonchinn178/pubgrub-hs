@@ -7,16 +7,17 @@ module PubGrub.Internal.PackageResolutionStats (
   conflictCount,
 ) where
 
+import Data.Word (Word32)
 import GHC.Records (HasField (..))
 
 -- | Statistics on how often a package conflicted with other packages.
 --
 -- Fields are not stable; 'conflictCount' is the only stable interface.
 data PackageResolutionStats = PackageResolutionStats
-  { unitPropagationAffected :: Int
-  , unitPropagationCulprit :: Int
-  , dependenciesAffected :: Int
-  , dependenciesCulprit :: Int
+  { unitPropagationAffected :: Word32
+  , unitPropagationCulprit :: Word32
+  , dependenciesAffected :: Word32
+  , dependenciesCulprit :: Word32
   }
 
 -- | The number of conflicts this package was involved in.
@@ -26,7 +27,7 @@ data PackageResolutionStats = PackageResolutionStats
 -- Whenever a package is part of the root cause incompatibility of a conflict, we increase its
 -- count by one. Since the structure of the incompatibilities may change, this count too may
 -- change in the future.
-conflictCount :: PackageResolutionStats -> Int
+conflictCount :: PackageResolutionStats -> Word32
 conflictCount stats =
   sum
     [ stats.unitPropagationAffected
@@ -35,5 +36,5 @@ conflictCount stats =
     , stats.dependenciesCulprit
     ]
 
-instance HasField "conflictCount" PackageResolutionStats Int where
+instance HasField "conflictCount" PackageResolutionStats Word32 where
   getField = conflictCount
