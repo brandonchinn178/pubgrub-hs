@@ -1,89 +1,66 @@
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module PubGrub.Error (
-  Error (..),
+  PubGrubError,
+  PubGrubError' (..),
 
   -- * DerivationTree
-  DerivationTree (..),
-  ExternalIncompat (..),
-  DerivedIncompat (..),
+  DerivationTree' (..),
+  ExternalIncompat' (..),
+  DerivedIncompat' (..),
 ) where
 
 import Data.Map (Map)
-import PubGrub.DependencyProvider (
-  DependencyProvider,
-  Package,
-  ResolutionError,
-  UnavailableError,
-  Version,
-  VersionRange,
- )
-import PubGrub.Term (Term)
+import PubGrub.DependencyProvider qualified as DP
+import PubGrub.Term (Term')
 
-data Error provider
-  = NoSolution (DerivationTree provider)
+type PubGrubError provider =
+  PubGrubError'
+    (DP.Package provider)
+    (DP.Version provider)
+    (DP.VersionRange provider)
+    (DP.ResolutionError provider)
+    (DP.ResolutionError provider)
+
+data PubGrubError' package version range unavailErr err
+  = NoSolution (DerivationTree' package version range unavailErr)
   | RetrieveDepsError
-      { package :: Package provider
-      , version :: Version provider
-      , source :: ResolutionError provider
+      { package :: package
+      , version :: version
+      , source :: err
       }
   | ChooseVersionError
-      { package :: Package provider
-      , source :: ResolutionError provider
+      { package :: package
+      , source :: err
       }
-  | ShouldCancelError (ResolutionError provider)
-
-deriving instance (DependencyProvider provider) => Show (Error provider)
-deriving instance (DependencyProvider provider) => Eq (Error provider)
+  | ShouldCancelError err
+  deriving (Show, Eq)
 
 -- | Derivation tree resulting in the impossibility to solve the dependencies of our root package.
-data DerivationTree provider
-  = DerivationTreeExternal (ExternalIncompat provider)
-  | DerivationTreeDerived (DerivedIncompat provider)
-  deriving (Eq)
-
-deriving instance
-  ( Show (ExternalIncompat provider)
-  , Show (DerivedIncompat provider)
-  ) =>
-  Show (DerivationTree provider)
+data DerivationTree' package version range unavailErr
+  = DerivationTreeExternal (ExternalIncompat' package version range unavailErr)
+  | DerivationTreeDerived (DerivedIncompat' package version range unavailErr)
+  deriving (Show, Eq)
 
 -- | Incompatibility that is not derived from other incompatibilities.
-data ExternalIncompat provider
+data ExternalIncompat' package version range unavailErr
   = -- | Initial incompatibility aiming at picking the root package for the first decision.
-    NotRoot (Package provider) (Version provider)
+    NotRoot package version
   | -- | There are no versions in the given set for this package.
-    NoVersions (Package provider) (VersionRange provider)
+    NoVersions package range
   | -- | Incompatibility coming from the dependencies of a given package.
-    FromDependencyOf
-      (Package provider, VersionRange provider)
-      (Package provider, VersionRange provider)
+    FromDependencyOf (package, range) (package, range)
   | -- | The package is unusable for reasons outside pubgrub.
-    Custom (Package provider) (VersionRange provider) (UnavailableError provider)
-
-deriving instance
-  ( Show (Package provider)
-  , Show (Version provider)
-  , Show (VersionRange provider)
-  , Show (UnavailableError provider)
-  , Show (ResolutionError provider)
-  ) =>
-  Show (ExternalIncompat provider)
-deriving instance (DependencyProvider provider) => Eq (ExternalIncompat provider)
+    Custom package range unavailErr
+  deriving (Show, Eq)
 
 -- | Incompatibility derived from two others.
-data DerivedIncompat provider = DerivedIncompat
-  { terms :: Map (Package provider) (Term (VersionRange provider))
+data DerivedIncompat' package version range unavailErr = DerivedIncompat'
+  { terms :: Map package (Term' package range)
   , sharedId :: Maybe Int
-  , cause1 :: DerivationTree provider
-  , cause2 :: DerivationTree provider
+  , cause1 :: DerivationTree' package version range unavailErr
+  , cause2 :: DerivationTree' package version range unavailErr
   }
-
-deriving instance
-  ( Show (Package provider)
-  , Show (VersionRange provider)
-  , Show (DerivationTree provider)
-  ) =>
-  Show (DerivedIncompat provider)
-deriving instance (DependencyProvider provider) => Eq (DerivedIncompat provider)
+  deriving (Show, Eq)
